@@ -1,0 +1,148 @@
+#Plot #1
+import matplotlib.pyplot as plt
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+
+
+def explode(data):
+    size = np.array(data.shape)*2
+    data_e = np.zeros(size - 1, dtype=data.dtype)
+    data_e[::2, ::2, ::2] = data
+    return data_e
+
+# build up the numpy logo
+n_voxels = np.zeros((4, 3, 4), dtype=bool)
+n_voxels[0, 0, :] = True
+n_voxels[-1, 0, :] = True
+n_voxels[1, 0, 2] = True
+n_voxels[2, 0, 1] = True
+facecolors = np.where(n_voxels, '#FFD65DC0', '#7A88CCC0')
+edgecolors = np.where(n_voxels, '#BFAB6E', '#7D84A6')
+filled = np.ones(n_voxels.shape)
+
+# upscale the above voxel image, leaving gaps
+filled_2 = explode(filled)
+fcolors_2 = explode(facecolors)
+ecolors_2 = explode(edgecolors)
+
+# Shrink the gaps
+x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2
+x[0::2, :, :] += 0.05
+y[:, 0::2, :] += 0.05
+z[:, :, 0::2] += 0.05
+x[1::2, :, :] += 0.95
+y[:, 1::2, :] += 0.95
+z[:, :, 1::2] += 0.95
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+ax.voxels(x, y, z, filled_2, facecolors=fcolors_2, edgecolors=ecolors_2)
+
+plt.show()
+
+---------------------------------------
+
+#Plot #2
+import matplotlib.pyplot as plt
+from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import MaxNLocator
+import numpy as np
+
+
+# make these smaller to increase the resolution
+dx, dy = 0.05, 0.05
+
+# generate 2 2d grids for the x & y bounds
+y, x = np.mgrid[slice(1, 5 + dy, dy),
+                slice(1, 5 + dx, dx)]
+
+z = np.sin(x)**10 + np.cos(10 + y*x) * np.cos(x)
+
+# x and y are bounds, so z should be the value *inside* those bounds.
+# Therefore, remove the last value from the z array.
+z = z[:-1, :-1]
+levels = MaxNLocator(nbins=15).tick_values(z.min(), z.max())
+
+
+# pick the desired colormap, sensible levels, and define a normalization
+# instance which takes data values and translates those into levels.
+cmap = plt.get_cmap('PiYG')
+norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+
+fig, (ax0, ax1) = plt.subplots(nrows=2)
+
+im = ax0.pcolormesh(x, y, z, cmap=cmap, norm=norm)
+fig.colorbar(im, ax=ax0)
+ax0.set_title('pcolormesh with levels')
+
+
+# contours are *point* based plots, so convert our bound into point
+# centers
+cf = ax1.contourf(x[:-1, :-1] + dx/2.,
+                  y[:-1, :-1] + dy/2., z, levels=levels,
+                  cmap=cmap)
+fig.colorbar(cf, ax=ax1)
+ax1.set_title('contourf with levels')
+
+# adjust spacing between subplots so `ax1` title and `ax0` tick labels
+# don't overlap
+fig.tight_layout()
+
+plt.show()
+
+----------------------------------------------
+
+#Plot #3
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+# Fixing random state for reproducibility
+np.random.seed(19680801)
+
+x, y = np.random.rand(2, 200)
+
+fig, ax = plt.subplots()
+circ = patches.Circle((0.5, 0.5), 0.25, alpha=0.8, fc='yellow')
+ax.add_patch(circ)
+
+
+ax.plot(x, y, alpha=0.2)
+line, = ax.plot(x, y, alpha=1.0, clip_path=circ)
+ax.set_title("Left click and drag to move looking glass")
+
+
+class EventHandler(object):
+    def __init__(self):
+        fig.canvas.mpl_connect('button_press_event', self.onpress)
+        fig.canvas.mpl_connect('button_release_event', self.onrelease)
+        fig.canvas.mpl_connect('motion_notify_event', self.onmove)
+        self.x0, self.y0 = circ.center
+        self.pressevent = None
+
+    def onpress(self, event):
+        if event.inaxes != ax:
+            return
+
+        if not circ.contains(event)[0]:
+            return
+
+        self.pressevent = event
+
+    def onrelease(self, event):
+        self.pressevent = None
+        self.x0, self.y0 = circ.center
+
+    def onmove(self, event):
+        if self.pressevent is None or event.inaxes != self.pressevent.inaxes:
+            return
+
+        dx = event.xdata - self.pressevent.xdata
+        dy = event.ydata - self.pressevent.ydata
+        circ.center = self.x0 + dx, self.y0 + dy
+        line.set_clip_path(circ)
+        fig.canvas.draw()
+
+handler = EventHandler()
+plt.show()
+
